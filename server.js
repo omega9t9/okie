@@ -1,77 +1,64 @@
 const express = require("express");
+const path = require("path");
 
 const app = express();
-const TARGET = "https://christmas-premium-free-demo.vercel.app";
+const PORT = process.env.PORT || 3000;
 
-const INJECT_SCRIPT = `
-<script>
-(function () {
-  const BAD_NAME = /anupriya/gi;
+// ===== CONFIG =====
+const ORIGINAL_SITE = "https://christmas-premium-free-demo.vercel.app";
+const CUSTOM_NAME = "YOUR_NAME_HERE"; // <<< change this
 
-  function cleanse(node) {
-    if (!node) return;
-
-    // Replace in text nodes
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (BAD_NAME.test(node.textContent)) {
-        node.textContent = node.textContent.replace(BAD_NAME, "Varsha");
-      }
-    }
-
-    // Recurse
-    node.childNodes && node.childNodes.forEach(cleanse);
-  }
-
-  // Initial sweep
-  setTimeout(() => cleanse(document.body), 500);
-
-  // Continuous protection
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(m => {
-      m.addedNodes.forEach(cleanse);
-    });
-  });
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-
-  // Fallback interval (React-safe)
-  setInterval(() => cleanse(document.body), 500);
-})();
-</script>
-`;
-
-app.use(async (req, res) => {
+// ===== PROXY ASSETS (images, videos, etc.) =====
+app.get("/assets/*", async (req, res) => {
   try {
-    const targetUrl = TARGET + req.originalUrl;
-    const response = await fetch(targetUrl);
-    const contentType = response.headers.get("content-type") || "";
+    const assetPath = req.originalUrl.replace("/assets", "");
+    const assetUrl = ORIGINAL_SITE + "/assets" + assetPath;
 
-    // ✅ HTML → inject script
-    if (contentType.includes("text/html")) {
-      let html = await response.text();
+    const response = await fetch(assetUrl);
 
-      // Inject before closing body
-      html = html.replace("</body>", `${INJECT_SCRIPT}</body>`);
-
-      res.set("Content-Type", contentType);
-      res.send(html);
-      return;
+    if (!response.ok) {
+      return res.sendStatus(404);
     }
 
-    // ✅ Everything else → raw pipe
-    res.set("Content-Type", contentType);
-    response.body.pipe(res);
+    const contentType = response.headers.get("content-type");
+    if (contentType) res.setHeader("Content-Type", contentType);
 
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.send(buffer);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Proxy error");
+    console.error("Asset error:", err);
+    res.sendStatus(500);
   }
 });
 
-app.listen(3000, () => {
-  console.log("✅ Proxy running at http://localhost:3000");
+// ===== MAIN PAGE PROXY + NAME REPLACEMENT =====
+app.get("*", async (req, res) => {
+  try {
+    const targetUrl = ORIGINAL_SITE + req.originalUrl;
+
+    const response = await fetch(targetUrl);
+    let html = await response.text();
+
+    // Replace name
+    html = html.replace(/Anupriya/g, CUSTOM_NAME);
+    html = html.replace(/anupriya/g, CUSTOM_NAME);
+
+    // Fix asset paths
+    html = html.replace(
+      /https:\/\/christmas-premium-free-demo\.vercel\.app\/assets/g,
+      "/assets"
+    );
+
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  } catch (err) {
+    console.error("Page error:", err);
+    res.status(500).send("Error loading page");
+  }
 });
 
+app.listen(PORT, () => {
+  console.log(`✅ Proxy running on port ${PORT}`);
+});
