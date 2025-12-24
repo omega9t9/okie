@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 // ===== CONFIG =====
 const ORIGINAL_SITE = "https://christmas-premium-free-demo.vercel.app";
-const CUSTOM_NAME = "YOUR_NAME_HERE"; // <<< change this
+const CUSTOM_NAME = "Varsha"; // <<< change this
 
 // ===== PROXY ASSETS (images, videos, etc.) =====
 app.get("/assets/*", async (req, res) => {
@@ -62,3 +62,4 @@ app.get("*", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Proxy running on port ${PORT}`);
 });
+
