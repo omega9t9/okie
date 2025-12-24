@@ -1,5 +1,4 @@
 const express = require("express");
-const fetch = require("node-fetch");
 
 const app = express();
 const TARGET = "https://christmas-premium-free-demo.vercel.app";
@@ -75,3 +74,4 @@ app.use(async (req, res) => {
 app.listen(3000, () => {
   console.log("✅ Proxy running at http://localhost:3000");
 });
+
