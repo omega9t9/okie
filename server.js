@@ -1,49 +1,36 @@
 const express = require("express");
-const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== CONFIG =====
 const ORIGINAL_SITE = "https://christmas-premium-free-demo.vercel.app";
-const CUSTOM_NAME = "Varsha"; // <<< change this
+const CUSTOM_NAME = "Varsha"; // 🔥 CHANGE THIS NAME
 
-// ===== PROXY ASSETS (images, videos, etc.) =====
+// ===== PROXY ASSETS =====
 app.get("/assets/*", async (req, res) => {
   try {
-    const assetPath = req.originalUrl.replace("/assets", "");
-    const assetUrl = ORIGINAL_SITE + "/assets" + assetPath;
+    const assetUrl = ORIGINAL_SITE + req.originalUrl;
 
     const response = await fetch(assetUrl);
-
-    if (!response.ok) {
-      return res.sendStatus(404);
-    }
+    if (!response.ok) return res.sendStatus(404);
 
     const contentType = response.headers.get("content-type");
     if (contentType) res.setHeader("Content-Type", contentType);
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
+    const buffer = Buffer.from(await response.arrayBuffer());
     res.send(buffer);
-  } catch (err) {
-    console.error("Asset error:", err);
+  } catch (e) {
+    console.error(e);
     res.sendStatus(500);
   }
 });
 
-// ===== MAIN PAGE PROXY + NAME REPLACEMENT =====
+// ===== MAIN PAGE + FORCE NAME OVERRIDE =====
 app.get("*", async (req, res) => {
   try {
-    const targetUrl = ORIGINAL_SITE + req.originalUrl;
-
-    const response = await fetch(targetUrl);
+    const response = await fetch(ORIGINAL_SITE + req.originalUrl);
     let html = await response.text();
-
-    // Replace name
-    html = html.replace(/Anupriya/g, CUSTOM_NAME);
-    html = html.replace(/anupriya/g, CUSTOM_NAME);
 
     // Fix asset paths
     html = html.replace(
@@ -51,10 +38,41 @@ app.get("*", async (req, res) => {
       "/assets"
     );
 
+    // 🔥 Inject name override script
+    const injection = `
+<script>
+(function () {
+  const NEW_NAME = "${CUSTOM_NAME}";
+  const OLD_NAMES = ["Anupriya", "anupriya", "ANUPRIYA"];
+
+  function replaceText(node) {
+    if (node.nodeType === 3) {
+      OLD_NAMES.forEach(oldName => {
+        node.nodeValue = node.nodeValue.replaceAll(oldName, NEW_NAME);
+      });
+    }
+    node.childNodes && node.childNodes.forEach(replaceText);
+  }
+
+  function run() {
+    replaceText(document.body);
+  }
+
+  run();
+
+  // React-safe: keep replacing even after DOM updates
+  const observer = new MutationObserver(run);
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+</body>`;
+
+    html = html.replace("</body>", injection);
+
     res.setHeader("Content-Type", "text/html");
     res.send(html);
-  } catch (err) {
-    console.error("Page error:", err);
+  } catch (e) {
+    console.error(e);
     res.status(500).send("Error loading page");
   }
 });
@@ -62,4 +80,3 @@ app.get("*", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Proxy running on port ${PORT}`);
 });
-
